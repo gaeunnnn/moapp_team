@@ -1,3 +1,21 @@
+buildscript {
+    ext.kotlin_version = '1.8.21'
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+     dependencies {
+        // START: FlutterFire Configuration
+        classpath 'com.google.gms:google-services:4.3.15'
+        // END: FlutterFire Configuration
+        // classpath 'com.android.tools.build:gradle:7.1.2'
+        // classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath 'com.android.tools.build:gradle:7.1.0' // 현재 안정적인 최신 버전 사용
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
 allprojects {
     repositories {
         google()
