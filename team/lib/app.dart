@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-
 import 'package:google_fonts/google_fonts.dart';
-
+import 'package:firebase_core/firebase_core.dart';
 import 'board.dart';
 import 'home.dart';
 import 'login.dart';
 import 'addProject.dart';
 import 'calendar.dart';
+import 'signup.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -20,6 +20,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/splash': (BuildContext context) => const SplashScreen(),
         '/login': (BuildContext context) => const LoginPage(),
+        '/signup': (BuildContext context) => const SignupPage(),
         '/': (BuildContext context) => const HomePage(),
         '/addProject': (BuildContext context) => AddProjectPage(),
         '/calendar': (BuildContext context) => CalendarPage(),

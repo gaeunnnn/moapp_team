@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "77009832062",
+    "project_id": "teamsync-c7f10",
+    "storage_bucket": "teamsync-c7f10.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:77009832062:android:53856a64be10d6ae96b02f",
+        "android_client_info": {
+          "package_name": "com.example.team"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBy6F-GgCB7xOju_nVqsLA6LlSOkiCNLzE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
