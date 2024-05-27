@@ -412,7 +412,7 @@ class _EditProjectPageState extends State<EditProjectPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Project')),
+      appBar: AppBar(title: const Text('Edit Project ')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
