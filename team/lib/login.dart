@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -25,6 +26,30 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       print(e);
+    }
+  }
+
+  Future<void> _googleSignIn() async {
+    final GoogleSignIn googleSignIn = GoogleSignIn();
+    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+    if (googleUser != null) {
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      try {
+        final UserCredential userCredential =
+            await _auth.signInWithCredential(credential);
+        if (userCredential.user != null) {
+          Navigator.of(context).pushReplacementNamed('/');
+        }
+      } catch (e) {
+        print(e);
+      }
     }
   }
 
@@ -99,9 +124,14 @@ class _LoginPageState extends State<LoginPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      TextButton(
-                        onPressed: () {},
-                        child: Text('Forgot password?'),
+                      ElevatedButton.icon(
+                        onPressed: _googleSignIn,
+                        icon: Icon(Icons.login),
+                        label: Text('Sign in with Google'),
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: Color(0xFFF46A6A),
+                        ),
                       ),
                       TextButton(
                         onPressed: () {
@@ -117,7 +147,8 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ],
-                  )
+                  ),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
