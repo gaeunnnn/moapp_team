@@ -8,6 +8,7 @@ import 'home.dart';
 import 'login.dart';
 import 'addProject.dart';
 import 'calendar.dart';
+import 'profile.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -21,8 +22,9 @@ class MyApp extends StatelessWidget {
         '/splash': (BuildContext context) => const SplashScreen(),
         '/login': (BuildContext context) => const LoginPage(),
         '/': (BuildContext context) => const HomePage(),
+        '/profile': (BuildContext context) => ProfilePage(),
         '/addProject': (BuildContext context) => AddProjectPage(),
-        '/calendar': (BuildContext context) => CalendarPage(),
+        '/calendar': (BuildContext context) => const CalendarPage(),
         '/board': (BuildContext context) => BoardPage(),
       },
       theme: ThemeData.light(
