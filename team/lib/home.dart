@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'project_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'project.dart';
 
 class HomePage extends StatefulWidget {
@@ -14,6 +15,147 @@ class _HomePageState extends State<HomePage> {
   int _current = 0;
   bool showCompleted = false;
   bool isCarouselView = true;
+  List<Project> projects = [];
+  String userName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUserName();
+    fetchProjects();
+  }
+
+  Future<void> fetchUserName() async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+
+      if (userDoc.exists) {
+        setState(() {
+          userName = userDoc['name'];
+        });
+      }
+    }
+  }
+
+  void fetchProjects() {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser != null) {
+      FirebaseFirestore.instance
+          .collection('projects')
+          .snapshots()
+          .listen((snapshot) {
+        final List<DocumentSnapshot> userProjects = snapshot.docs.where((doc) {
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          int membersCount = data['members'];
+          for (int i = 1; i <= membersCount; i++) {
+            String teamMemberField = 'teamMember$i';
+            if (data[teamMemberField] == currentUser.uid) {
+              return true;
+            }
+          }
+          return false;
+        }).toList();
+
+        if (mounted) {
+          setState(() {
+            projects = userProjects
+                .map((doc) => Project.fromDocumentSnapshot(doc))
+                .toList();
+          });
+        }
+      });
+    } else {
+      print('사용자가 로그인하지 않았습니다.');
+    }
+  }
+
+  Future<bool> joinProjectByCode(String code, BuildContext context) async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser != null) {
+      DocumentReference projectRef =
+          FirebaseFirestore.instance.collection('projects').doc(code);
+      DocumentSnapshot projectSnapshot = await projectRef.get();
+
+      if (projectSnapshot.exists) {
+        Map<String, dynamic> projectData =
+            projectSnapshot.data() as Map<String, dynamic>;
+        Map<String, dynamic> updates = {};
+        int members = projectData['members'];
+        bool isMemberAdded = false;
+
+        for (int i = 1; i <= members; i++) {
+          String teamMemberField = 'teamMember$i';
+          if (!projectData.containsKey(teamMemberField)) {
+            updates[teamMemberField] = currentUser.uid;
+            isMemberAdded = true;
+            break;
+          }
+        }
+
+        if (isMemberAdded) {
+          await FirebaseFirestore.instance.runTransaction((transaction) async {
+            transaction.update(projectRef, updates);
+
+            QuerySnapshot todolistsSnapshot = await projectRef
+                .collection('todolists')
+                .where('type', isEqualTo: '공동')
+                .get();
+
+            for (var doc in todolistsSnapshot.docs) {
+              Map<String, dynamic> todoData =
+                  doc.data() as Map<String, dynamic>;
+
+              for (int i = 1; i <= members; i++) {
+                String teamMemberField = 'teamMember$i';
+                if (!todoData.containsKey(teamMemberField)) {
+                  todoData[teamMemberField] = currentUser.uid;
+                }
+              }
+
+              transaction.update(doc.reference, todoData);
+            }
+          });
+
+          return true;
+        } else {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text('알림'),
+              content: Text('팀 멤버가 모두 채워졌습니다.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('확인'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('알림'),
+            content: Text('프로젝트가 존재하지 않습니다.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('확인'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,13 +196,22 @@ class _HomePageState extends State<HomePage> {
                           value: 0,
                           child: Center(
                             child: Text(
-                              '편집',
+                              '코드 확인',
                               style: TextStyle(color: Colors.black),
                             ),
                           ),
                         ),
                         PopupMenuItem<int>(
                           value: 1,
+                          child: Center(
+                            child: Text(
+                              '편집',
+                              style: TextStyle(color: Colors.black),
+                            ),
+                          ),
+                        ),
+                        PopupMenuItem<int>(
+                          value: 2,
                           child: Center(
                             child: Text(
                               '삭제',
@@ -112,7 +263,12 @@ class _HomePageState extends State<HomePage> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.of(context).pushNamed(
+                        '/calendar',
+                        arguments: project.id,
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
                           project.isCompleted ? Colors.grey : Color(0xFFF46A6A),
@@ -127,18 +283,17 @@ class _HomePageState extends State<HomePage> {
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(project.isCompleted ? "진행완료" : "진행중",
-                            style: TextStyle(
-                                fontSize: 20,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold)),
-                        IconButton(
-                          icon: Icon(Icons.arrow_forward_ios_rounded,
-                              color: Colors.white),
-                          onPressed: () {
-                            Navigator.of(context)
-                                .pushReplacementNamed('/calendar');
-                          },
+                        Text(
+                          project.isCompleted ? "진행완료" : "진행중",
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          color: Colors.white,
                         ),
                       ],
                     ),
@@ -155,12 +310,7 @@ class _HomePageState extends State<HomePage> {
         leading: IconButton(
           icon: const Icon(Icons.person),
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ProfilePage(),
-              ),
-            );
+            Navigator.of(context).pushNamed('/profile');
           },
         ),
         title: const Text('TeamSync',
@@ -178,15 +328,13 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Column(
         children: [
-          SizedBox(
-            height: 50,
-          ),
+          SizedBox(height: 50),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("000학부생님의"),
+                Text("$userName학부생님의"),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -207,11 +355,64 @@ class _HomePageState extends State<HomePage> {
                             });
                           },
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.add),
-                          onPressed: () {
-                            Navigator.of(context).pushNamed('/addProject');
+                        PopupMenuButton<int>(
+                          icon: Icon(Icons.add),
+                          onSelected: (value) {
+                            if (value == 0) {
+                              Navigator.of(context).pushNamed('/addProject');
+                            } else if (value == 1) {
+                              showDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  TextEditingController codeController =
+                                      TextEditingController();
+                                  return AlertDialog(
+                                    title: Text('코드를 입력하세요'),
+                                    content: TextField(
+                                      controller: codeController,
+                                      decoration:
+                                          InputDecoration(hintText: "코드 입력"),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        child: Text('취소'),
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                      ),
+                                      TextButton(
+                                        child: Text('확인'),
+                                        onPressed: () async {
+                                          String code =
+                                              codeController.text.trim();
+                                          if (await joinProjectByCode(
+                                              code, context)) {
+                                            Navigator.of(context).pop();
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            }
                           },
+                          itemBuilder: (context) => [
+                            PopupMenuItem<int>(
+                              value: 0,
+                              child: Center(
+                                child: Text('프로젝트 생성',
+                                    style: TextStyle(color: Colors.black)),
+                              ),
+                            ),
+                            PopupMenuItem<int>(
+                              value: 1,
+                              child: Center(
+                                child: Text('코드 입력',
+                                    style: TextStyle(color: Colors.black)),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -226,14 +427,15 @@ class _HomePageState extends State<HomePage> {
                     items: imageSliders,
                     carouselController: _controller,
                     options: CarouselOptions(
-                        enlargeCenterPage: true,
-                        viewportFraction: 0.62,
-                        height: 350,
-                        onPageChanged: (index, reason) {
-                          setState(() {
-                            _current = index;
-                          });
-                        }),
+                      enlargeCenterPage: true,
+                      viewportFraction: 0.62,
+                      height: 350,
+                      onPageChanged: (index, reason) {
+                        setState(() {
+                          _current = index;
+                        });
+                      },
+                    ),
                   )
                 : ListView.builder(
                     itemCount: filteredProjects.length,
@@ -250,12 +452,19 @@ class _HomePageState extends State<HomePage> {
                             PopupMenuItem<int>(
                               value: 0,
                               child: Center(
-                                child: Text('편집',
+                                child: Text('코드 확인',
                                     style: TextStyle(color: Colors.black)),
                               ),
                             ),
                             PopupMenuItem<int>(
                               value: 1,
+                              child: Center(
+                                child: Text('편집',
+                                    style: TextStyle(color: Colors.black)),
+                              ),
+                            ),
+                            PopupMenuItem<int>(
+                              value: 2,
                               child: Center(
                                 child: Text('삭제',
                                     style: TextStyle(color: Colors.red)),
@@ -290,9 +499,7 @@ class _HomePageState extends State<HomePage> {
                   }).toList(),
                 )
               : SizedBox(),
-          SizedBox(
-            height: 30,
-          ),
+          SizedBox(height: 30),
         ],
       ),
     );
@@ -301,6 +508,21 @@ class _HomePageState extends State<HomePage> {
   void onSelected(BuildContext context, int item, Project project) {
     switch (item) {
       case 0:
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('코드 확인'),
+            content: Text('프로젝트 코드: ${project.id}'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('확인'),
+              ),
+            ],
+          ),
+        );
+        break;
+      case 1:
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => EditProjectPage(
@@ -315,7 +537,7 @@ class _HomePageState extends State<HomePage> {
           ),
         );
         break;
-      case 1:
+      case 2:
         // 삭제 로직 추가
         setState(() {
           projects.remove(project);
@@ -377,8 +599,12 @@ class _EditProjectPageState extends State<EditProjectPage> {
             ElevatedButton(
               onPressed: () {
                 Project editedProject = Project(
+                  id: widget.project.id,
+                  leaderUid: widget.project.leaderUid,
                   title: titleController.text,
                   duration: durationController.text,
+                  members: widget.project.members,
+                  description: widget.project.description,
                   progress: widget.project.progress,
                   isCompleted: widget.project.isCompleted,
                 );
@@ -390,16 +616,6 @@ class _EditProjectPageState extends State<EditProjectPage> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class ProfilePage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
-      body: Center(child: const Text('Profile Page')),
     );
   }
 }

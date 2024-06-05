@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'board.dart';
 import 'home.dart';
 import 'login.dart';
 import 'addProject.dart';
 import 'calendar.dart';
 import 'signup.dart';
+import 'profile.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -17,14 +17,34 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'TeamSync',
       initialRoute: '/splash',
-      routes: {
-        '/splash': (BuildContext context) => const SplashScreen(),
-        '/login': (BuildContext context) => const LoginPage(),
-        '/signup': (BuildContext context) => const SignupPage(),
-        '/': (BuildContext context) => const HomePage(),
-        '/addProject': (BuildContext context) => AddProjectPage(),
-        '/calendar': (BuildContext context) => CalendarPage(),
-        '/board': (BuildContext context) => BoardPage(),
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/splash':
+            return MaterialPageRoute(
+                builder: (context) => const SplashScreen());
+          case '/login':
+            return MaterialPageRoute(builder: (context) => const LoginPage());
+          case '/signup':
+            return MaterialPageRoute(builder: (context) => const SignupPage());
+          case '/':
+            return MaterialPageRoute(builder: (context) => const HomePage());
+          case '/addProject':
+            return MaterialPageRoute(builder: (context) => AddProjectPage());
+          case '/calendar':
+            final projectId = settings.arguments as String;
+            return MaterialPageRoute(
+              builder: (context) => CalendarPage(projectId: projectId),
+            );
+          case '/board':
+            final projectId = settings.arguments as String;
+            return MaterialPageRoute(
+              builder: (context) => BoardPage(projectId: projectId),
+            );
+          case '/profile':
+            return MaterialPageRoute(builder: (context) => ProfilePage());
+          default:
+            return null;
+        }
       },
       theme: ThemeData.light(
         useMaterial3: true,
