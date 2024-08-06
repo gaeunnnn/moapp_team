@@ -17,27 +17,13 @@ class _CommentsPageState extends State<CommentsPage> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
   Map<String, dynamic> boardContent = {};
   String commentName = '';
+  String authorName = '';
+  String profileImageUrl = '';
 
   @override
   void initState() {
     super.initState();
-    _fetchAuthorName();
     _fetchBoardContent();
-  }
-
-  Future<void> _fetchAuthorName() async {
-    if (currentUser != null) {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .get();
-
-      if (userDoc.exists) {
-        setState(() {
-          commentName = userDoc['name'];
-        });
-      }
-    }
   }
 
   Future<void> _fetchBoardContent() async {
@@ -49,11 +35,21 @@ class _CommentsPageState extends State<CommentsPage> {
         .get();
 
     if (boardDoc.exists) {
+      final authorUID = boardDoc['author'];
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(authorUID)
+          .get();
+
+      authorName = userDoc.exists ? userDoc['name'] : 'Unknown';
+      profileImageUrl = userDoc.exists ? userDoc['profileImageUrl'] : null;
+
       setState(() {
         boardContent = {
           'content': boardDoc['content'],
-          'author_name': boardDoc['author_name'],
+          'author_name': authorName,
           'author': boardDoc['author'],
+          'profileImageUrl': profileImageUrl,
           'imageUrl': boardDoc['imageUrl']
         };
       });
@@ -65,7 +61,7 @@ class _CommentsPageState extends State<CommentsPage> {
       final comment = {
         'content': _commentController.text,
         'author': currentUser!.uid,
-        'comment_name': commentName,
+        'profileImageUrl': profileImageUrl,
         'createdAt': FieldValue.serverTimestamp(),
       };
       await FirebaseFirestore.instance
@@ -91,6 +87,23 @@ class _CommentsPageState extends State<CommentsPage> {
         .delete();
   }
 
+  Future<Map<String, dynamic>> _fetchAuthorInfo(String uid) async {
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+    if (userDoc.exists) {
+      return {
+        'name': userDoc['name'],
+        'profileImageUrl': userDoc['profileImageUrl'],
+      };
+    } else {
+      return {
+        'name': 'Unknown',
+        'profileImageUrl': null,
+      };
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -112,8 +125,7 @@ class _CommentsPageState extends State<CommentsPage> {
                     Row(
                       children: [
                         CircleAvatar(
-                          backgroundImage: AssetImage('assets/avatar.png'),
-                          radius: 20,
+                          backgroundImage: NetworkImage(profileImageUrl),
                         ),
                         SizedBox(width: 10),
                         Text(
@@ -161,46 +173,78 @@ class _CommentsPageState extends State<CommentsPage> {
                     final comment = comments[index];
                     final commentData = comment.data() as Map<String, dynamic>;
 
-                    return Container(
-                      margin: const EdgeInsets.symmetric(
-                          vertical: 4.0, horizontal: 8.0),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CircleAvatar(
-                            backgroundImage: AssetImage('assets/avatar.png'),
-                            radius: 20,
-                          ),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${commentData['comment_name']}',
-                                  style: TextStyle(
-                                      fontSize: 12, color: Colors.grey),
+                    return FutureBuilder<Map<String, dynamic>>(
+                      future: _fetchAuthorInfo(commentData['author']),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return CircularProgressIndicator();
+                        }
+
+                        final authorInfo = snapshot.data!;
+                        final commentName = authorInfo['name'];
+                        final profileImageUrl = authorInfo['profileImageUrl'];
+
+                        return Container(
+                          margin: const EdgeInsets.symmetric(
+                              vertical: 4.0, horizontal: 8.0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ClipOval(
+                                child: profileImageUrl != null
+                                    ? Image.network(
+                                        profileImageUrl,
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.person,
+                                          size: 20,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                              ),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      commentName,
+                                      style: TextStyle(
+                                          fontSize: 12, color: Colors.grey),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.all(10.0),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[200],
+                                        borderRadius:
+                                            BorderRadius.circular(10.0),
+                                      ),
+                                      child: Text(commentData['content']),
+                                    ),
+                                  ],
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.all(10.0),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(10.0),
-                                  ),
-                                  child: Text(commentData['content']),
+                              ),
+                              if (currentUser!.uid == commentData['author'])
+                                IconButton(
+                                  icon: Icon(Icons.delete),
+                                  onPressed: () {
+                                    _deleteComment(comment.id);
+                                  },
                                 ),
-                              ],
-                            ),
+                            ],
                           ),
-                          if (currentUser!.uid == commentData['author'])
-                            IconButton(
-                              icon: Icon(Icons.delete),
-                              onPressed: () {
-                                _deleteComment(comment.id);
-                              },
-                            ),
-                        ],
-                      ),
+                        );
+                      },
                     );
                   },
                 );

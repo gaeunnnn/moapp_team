@@ -18,6 +18,29 @@ class AddTodoPage extends StatefulWidget {
 class _AddTodoPageState extends State<AddTodoPage> {
   final _controller = TextEditingController();
   String _type = '개인';
+  String authorName = '';
+  final User? currentUser = FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAuthorName();
+  }
+
+  Future<void> _fetchAuthorName() async {
+    if (currentUser != null) {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .get();
+
+      if (userDoc.exists) {
+        setState(() {
+          authorName = userDoc['name'];
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +146,7 @@ class _AddTodoPageState extends State<AddTodoPage> {
           widget.selectedDate.month, widget.selectedDate.day)),
       'type': _type,
       'isDone': false,
+      'author_name': authorName,
     };
 
     if (_type == '개인' && currentUser != null) {

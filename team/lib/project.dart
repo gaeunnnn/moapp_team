@@ -9,6 +9,7 @@ class Project {
   String description;
   double progress;
   bool isCompleted;
+  Map<String, String?> teamMembers;
 
   Project({
     required this.id,
@@ -19,6 +20,7 @@ class Project {
     required this.description,
     required this.progress,
     required this.isCompleted,
+    required this.teamMembers,
   });
 
   factory Project.fromDocumentSnapshot(DocumentSnapshot doc) {
@@ -39,6 +41,12 @@ class Project {
       progress = (elapsedDays / totalDays).clamp(0.0, 1.0);
     }
 
+    Map<String, String?> teamMembers = {};
+    for (int i = 1; i <= data['members']; i++) {
+      String teamMemberField = 'teamMember$i';
+      teamMembers[teamMemberField] = data[teamMemberField];
+    }
+
     return Project(
       id: doc.id,
       leaderUid: data['leaderUid'],
@@ -48,6 +56,7 @@ class Project {
       description: data['description'],
       progress: progress,
       isCompleted: progress != 1.0 ? false : true,
+      teamMembers: teamMembers,
     );
   }
 }

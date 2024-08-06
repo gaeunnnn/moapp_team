@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'map.dart';
 import 'dart:io';
-import 'map_picker.dart';
 
 class AddBoardPage extends StatefulWidget {
   final Map<String, dynamic>? board;
@@ -25,12 +26,17 @@ class _AddBoardPageState extends State<AddBoardPage> {
   LatLng? _selectedLocation;
   final picker = ImagePicker();
   String authorName = '';
+  String profileUrl = '';
+  String? _selectedAddress;
 
   @override
   void initState() {
     super.initState();
     if (widget.board != null) {
       _contentController.text = widget.board!['content'];
+      _selectedLocation = LatLng(widget.board!['location'].latitude,
+          widget.board!['location'].longitude);
+      _selectedAddress = widget.board!['address'];
     }
     _fetchAuthorName();
   }
@@ -45,6 +51,7 @@ class _AddBoardPageState extends State<AddBoardPage> {
       if (userDoc.exists) {
         setState(() {
           authorName = userDoc['name'];
+          profileUrl = userDoc['profileImageUrl'];
         });
       }
     }
@@ -86,13 +93,31 @@ class _AddBoardPageState extends State<AddBoardPage> {
   void _pickLocation() async {
     final selectedLocation = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => MapPickerPage()),
+      MaterialPageRoute(builder: (context) => MapSample()),
     );
 
     if (selectedLocation != null) {
       setState(() {
         _selectedLocation = selectedLocation;
+        _getAddressFromLatLng(selectedLocation);
       });
+    }
+  }
+
+  Future<void> _getAddressFromLatLng(LatLng position) async {
+    try {
+      List<Placemark> placemarks =
+          await placemarkFromCoordinates(position.latitude, position.longitude);
+      if (placemarks.isNotEmpty) {
+        setState(() {
+          _selectedAddress =
+              '${placemarks.first.street}, ${placemarks.first.locality}';
+          _contentController.text =
+              '장소: $_selectedAddress\n${_contentController.text}';
+        });
+      }
+    } catch (e) {
+      print(e);
     }
   }
 
@@ -113,6 +138,8 @@ class _AddBoardPageState extends State<AddBoardPage> {
                 _selectedLocation!.latitude, _selectedLocation!.longitude)
             : null,
         'author_name': authorName,
+        'authorProfileImageUrl': profileUrl,
+        'address': _selectedAddress,
       };
       await FirebaseFirestore.instance
           .collection('projects')
@@ -149,56 +176,69 @@ class _AddBoardPageState extends State<AddBoardPage> {
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Divider(color: Colors.grey),
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundImage: AssetImage('assets/avatar.png'),
-                    radius: 20,
-                  ),
-                  SizedBox(width: 10),
-                  Text(
-                    authorName,
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ],
-              ),
-              Divider(color: Colors.grey),
-              SizedBox(height: 20),
-              TextFormField(
-                controller: _contentController,
-                decoration: InputDecoration(
-                  hintText: '글 내용을 입력해주세요.',
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Divider(color: Colors.grey),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundImage: profileUrl.isNotEmpty
+                          ? NetworkImage(profileUrl)
+                          : null,
+                      child: profileUrl.isEmpty
+                          ? Icon(Icons.person, size: 20)
+                          : null,
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      authorName,
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ],
                 ),
-                maxLines: 10,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return '내용을 입력해주세요';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 20),
-              Row(
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.camera),
-                    onPressed: _pickImage,
+                Divider(color: Colors.grey),
+                SizedBox(height: 20),
+                TextFormField(
+                  controller: _contentController,
+                  decoration: InputDecoration(
+                    hintText: '글 내용을 입력해주세요.',
                   ),
-                  IconButton(
-                    icon: Icon(Icons.map),
-                    onPressed: _pickLocation,
+                  maxLines: 10,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return '내용을 입력해주세요';
+                    }
+                    return null;
+                  },
+                ),
+                if (_image != null) ...[
+                  SizedBox(height: 20),
+                  Center(
+                    child: Image.file(
+                      _image!,
+                      width: 100,
+                      height: 100,
+                    ),
                   ),
                 ],
-              ),
-              if (_image != null) Image.file(_image!),
-              if (_selectedLocation != null)
-                Text(
-                    'Selected location: ${_selectedLocation!.latitude}, ${_selectedLocation!.longitude}'),
-            ],
+                SizedBox(height: 20),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.camera),
+                      onPressed: _pickImage,
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.map),
+                      onPressed: _pickLocation,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

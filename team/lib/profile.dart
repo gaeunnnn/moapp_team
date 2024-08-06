@@ -116,33 +116,50 @@ class _ProfilePageState extends State<ProfilePage> {
                     SizedBox(height: 20),
                     Text(
                       _userData!['name'] ?? 'No Name',
-                      style:
-                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
                     ),
                     SizedBox(height: 10),
-                    Text(
-                      'Email: ${currentUser!.email}',
-                      style: TextStyle(fontSize: 16),
-                    ),
+                    Divider(color: Colors.grey),
                     SizedBox(height: 10),
-                    Text(
-                      'Department: ${_userData!['department'] ?? 'No Department'}',
-                      style: TextStyle(fontSize: 16),
-                    ),
+                    _buildInfoRow(
+                        '학부', _userData!['department'] ?? 'No Department'),
                     SizedBox(height: 10),
-                    Text(
-                      'Year: ${_userData!['year'] ?? 'No Year'}',
-                      style: TextStyle(fontSize: 16),
-                    ),
+                    _buildInfoRow(
+                        '학년', '${_userData!['year'] ?? 'No Year'} 학년'),
                     SizedBox(height: 10),
-                    Text(
-                      'Faculty: ${_userData!['faculty'] ?? 'No Faculty'}',
-                      style: TextStyle(fontSize: 16),
-                    ),
+                    _buildInfoRow('학교', _userData!['faculty'] ?? 'No Faculty'),
+                    SizedBox(height: 10),
+                    _buildInfoRow('이메일', currentUser!.email ?? 'No Email'),
                   ],
                 ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInfoRow(String title, String content) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          '$title:',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          content,
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey[600],
+          ),
+        ),
+      ],
     );
   }
 }

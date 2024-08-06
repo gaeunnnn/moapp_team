@@ -20,7 +20,7 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   Map<DateTime, List<Event>> _events = {};
-  int _selectedIndex = 1;
+  int _selectedIndex = 2;
   bool _isLoading = true; // 로딩 상태를 위한 변수
 
   @override
@@ -35,10 +35,14 @@ class _CalendarPageState extends State<CalendarPage> {
         Navigator.pop(context);
         break;
       case 1:
-        Navigator.pushReplacementNamed(context, '/calendar',
+        Navigator.pushReplacementNamed(context, '/detail',
             arguments: widget.projectId);
         break;
       case 2:
+        Navigator.pushReplacementNamed(context, '/calendar',
+            arguments: widget.projectId);
+        break;
+      case 3:
         Navigator.pushReplacementNamed(context, '/board',
             arguments: widget.projectId);
         break;
@@ -274,22 +278,29 @@ class _CalendarPageState extends State<CalendarPage> {
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
             label: 'Home',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: 'Detail',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.calendar_today),
             label: 'Calendar',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bubble_chart),
+            icon: Icon(Icons.forum),
             label: 'Board',
           ),
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.black,
+        unselectedItemColor: Colors.grey,
+        showUnselectedLabels: true,
         onTap: _onItemTapped,
       ),
     );

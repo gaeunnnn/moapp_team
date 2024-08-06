@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
+import 'projectDetail.dart';
 import 'board.dart';
 import 'home.dart';
 import 'login.dart';
@@ -30,6 +31,11 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(builder: (context) => const HomePage());
           case '/addProject':
             return MaterialPageRoute(builder: (context) => AddProjectPage());
+          case '/detail':
+            final projectId = settings.arguments as String;
+            return MaterialPageRoute(
+              builder: (context) => ProjectDetailPage(projectId: projectId),
+            );
           case '/calendar':
             final projectId = settings.arguments as String;
             return MaterialPageRoute(
@@ -46,8 +52,18 @@ class MyApp extends StatelessWidget {
             return null;
         }
       },
-      theme: ThemeData.light(
-        useMaterial3: true,
+      theme: ThemeData(
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.white,
+          iconTheme: IconThemeData(color: Colors.black),
+          titleTextStyle: TextStyle(color: Colors.black, fontSize: 20),
+        ),
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          backgroundColor: Colors.white,
+          selectedItemColor: Colors.black,
+          unselectedItemColor: Colors.grey,
+        ),
       ),
     );
   }

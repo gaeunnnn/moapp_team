@@ -91,14 +91,14 @@ class _SignupPageState extends State<SignupPage> {
               TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(
-                  labelText: 'Email',
+                  labelText: '이메일',
                 ),
               ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: _passwordController,
                 decoration: const InputDecoration(
-                  labelText: 'Password',
+                  labelText: '비밀번호',
                 ),
                 obscureText: true,
               ),
@@ -106,7 +106,7 @@ class _SignupPageState extends State<SignupPage> {
               TextFormField(
                 controller: _confirmPasswordController,
                 decoration: const InputDecoration(
-                  labelText: 'Confirm Password',
+                  labelText: '비밀번호 확인',
                 ),
                 obscureText: true,
               ),

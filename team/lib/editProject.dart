@@ -1,25 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:math';
 import 'numberInc.dart'; // 위젯 파일을 임포트합니다
-import 'QRPage.dart'; // QR 코드 페이지를 임포트합니다
+import 'project.dart';
 
-class AddProjectPage extends StatefulWidget {
+class EditProjectPage extends StatefulWidget {
+  final Project project;
+  final ValueChanged<Project> onSave;
+
+  const EditProjectPage({
+    Key? key,
+    required this.project,
+    required this.onSave,
+  }) : super(key: key);
+
   @override
-  _AddProjectPageState createState() => _AddProjectPageState();
+  _EditProjectPageState createState() => _EditProjectPageState();
 }
 
-class _AddProjectPageState extends State<AddProjectPage> {
+class _EditProjectPageState extends State<EditProjectPage> {
   final TextEditingController _projectNameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
   DateTime? _startDate;
   DateTime? _endDate;
-  String _qrData = '';
   int _members = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _projectNameController.text = widget.project.title;
+    _descriptionController.text = widget.project.description;
+    _startDate =
+        DateFormat('yyyy-MM-dd').parse(widget.project.duration.split(' ~ ')[0]);
+    _endDate =
+        DateFormat('yyyy-MM-dd').parse(widget.project.duration.split(' ~ ')[1]);
+    _members = widget.project.members;
+  }
 
   @override
   void dispose() {
@@ -31,7 +49,9 @@ class _AddProjectPageState extends State<AddProjectPage> {
   Future<void> _selectDate(BuildContext context, bool isStart) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: isStart
+          ? (_startDate ?? DateTime.now())
+          : (_endDate ?? DateTime.now()),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
@@ -46,19 +66,7 @@ class _AddProjectPageState extends State<AddProjectPage> {
     }
   }
 
-  String generateRandomCode(int length) {
-    const String _chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    Random _rnd = Random();
-    return String.fromCharCodes(
-      Iterable.generate(
-        length,
-        (_) => _chars.codeUnitAt(_rnd.nextInt(_chars.length)),
-      ),
-    );
-  }
-
-  Future<void> _addProject() async {
-    String projectCode = generateRandomCode(4);
+  Future<void> _updateProject() async {
     User? currentUser = FirebaseAuth.instance.currentUser;
 
     if (currentUser != null) {
@@ -73,8 +81,7 @@ class _AddProjectPageState extends State<AddProjectPage> {
         progress = (elapsedDays / totalDays).clamp(0.0, 1.0);
       }
 
-      final project = {
-        'leaderUid': currentUser.uid,
+      final updatedProject = {
         'title': _projectNameController.text,
         'startDate': _startDate != null
             ? DateFormat('yyyy-MM-dd').format(_startDate!)
@@ -82,7 +89,6 @@ class _AddProjectPageState extends State<AddProjectPage> {
         'endDate':
             _endDate != null ? DateFormat('yyyy-MM-dd').format(_endDate!) : '',
         'members': _members,
-        'teamMember1': currentUser.uid,
         'description': _descriptionController.text,
         'progress': progress,
         'isCompleted': progress != 1.0 ? false : true,
@@ -90,85 +96,41 @@ class _AddProjectPageState extends State<AddProjectPage> {
 
       await FirebaseFirestore.instance
           .collection('projects')
-          .doc(projectCode)
-          .set(project);
+          .doc(widget.project.id)
+          .update(updatedProject);
 
-      // Create an empty todolists collection for the new project
-      await FirebaseFirestore.instance
-          .collection('projects')
-          .doc(projectCode)
-          .collection('todolists')
-          .add({'initialized': true});
+      Map<String, String?> teamMembers = {};
+      for (int i = 1; i <= _members; i++) {
+        String teamMemberField = 'teamMember$i';
+        teamMembers[teamMemberField] =
+            widget.project.teamMembers[teamMemberField];
+      }
 
-      setState(() {
-        _qrData =
-            '프로젝트 코드: $projectCode\n프로젝트 이름: ${_projectNameController.text}\n시작 날짜: ${_startDate != null ? DateFormat('yyyy-MM-dd').format(_startDate!) : ''}\n마감 날짜: ${_endDate != null ? DateFormat('yyyy-MM-dd').format(_endDate!) : ''}\n인원: $_members\n상세 설명: ${_descriptionController.text}';
-      });
+      Project editedProject = Project(
+        id: widget.project.id,
+        leaderUid: widget.project.leaderUid,
+        title: _projectNameController.text,
+        duration:
+            '${_startDate != null ? DateFormat('yyyy-MM-dd').format(_startDate!) : ''} ~ ${_endDate != null ? DateFormat('yyyy-MM-dd').format(_endDate!) : ''}',
+        members: _members,
+        description: _descriptionController.text,
+        progress: progress,
+        isCompleted: progress != 1.0 ? false : true,
+        teamMembers: teamMembers,
+      );
 
-      _navigateToQRCodePage(_qrData); // QR 코드 페이지로 이동
-      // _showQRCodeDialog(_qrData); // QR 코드 다이얼로그 호출
+      widget.onSave(editedProject);
+      Navigator.of(context).pop();
     } else {
       print('사용자가 로그인하지 않았습니다.');
     }
   }
 
-  void _navigateToQRCodePage(String qrData) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => QRCodePage(qrData: qrData),
-      ),
-    );
-  }
-
-  // void _showQRCodeDialog(String qrData) {
-  //   showDialog(
-  //     context: context,
-  //     builder: (BuildContext context) {
-  //       return AlertDialog(
-  //         title: Text('QR 코드'),
-  //         content: SingleChildScrollView(
-  //           child: Column(
-  //             mainAxisSize: MainAxisSize.min,
-  //             children: [
-  //               QrImageView(
-  //                 data: qrData,
-  //                 backgroundColor: Colors.white,
-  //                 size: 100,
-  //               ),
-  //               SizedBox(height: 20),
-  //               Text(
-  //                 qrData,
-  //                 textAlign: TextAlign.center,
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //         actions: [
-  //           TextButton(
-  //             child: Text('확인'),
-  //             onPressed: () {
-  //               Navigator.pushNamedAndRemoveUntil(
-  //                   context, '/', (route) => false);
-  //             },
-  //           ),
-  //           TextButton(
-  //             child: Text('취소'),
-  //             onPressed: () {
-  //               Navigator.of(context).pop(); // 팝업 닫기
-  //             },
-  //           ),
-  //         ],
-  //       );
-  //     },
-  //   );
-  // }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('프로젝트 생성'),
+        title: Text('프로젝트 수정'),
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16.0),
@@ -176,7 +138,7 @@ class _AddProjectPageState extends State<AddProjectPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              '팀 프로젝트 생성',
+              '프로젝트 수정',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -276,22 +238,14 @@ class _AddProjectPageState extends State<AddProjectPage> {
             SizedBox(height: 20),
             Center(
               child: ElevatedButton(
-                onPressed: _addProject,
-                child: Text('+ 생성'),
+                onPressed: _updateProject,
+                child: Text('수정'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black,
                 ),
               ),
             ),
           ],
-        ),
-      ),
-      bottomNavigationBar: BottomAppBar(
-        child: IconButton(
-          icon: Icon(Icons.home),
-          onPressed: () {
-            Navigator.pushNamed(context, '/');
-          },
         ),
       ),
     );

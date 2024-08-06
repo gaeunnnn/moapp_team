@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart';
+import 'dart:io';
+import 'map.dart';
 
 class EditBoardPage extends StatefulWidget {
   final Map<String, dynamic> board;
@@ -21,36 +27,40 @@ class _EditBoardPageState extends State<EditBoardPage> {
   final _formKey = GlobalKey<FormState>();
   final _contentController = TextEditingController();
   final User? currentUser = FirebaseAuth.instance.currentUser;
+  File? _image;
+  LatLng? _selectedLocation;
+  final picker = ImagePicker();
   String authorName = '';
+  String authorProfileImageUrl = '';
+  String? _selectedAddress;
+  String? imageUrl;
 
   @override
   void initState() {
     super.initState();
     _contentController.text = widget.board['content'];
+    imageUrl = widget.board['imageUrl'];
+    _selectedLocation = widget.board['location'] != null
+        ? LatLng(widget.board['location'].latitude,
+            widget.board['location'].longitude)
+        : null;
+    _selectedAddress = widget.board['address'];
     _fetchAuthorName();
   }
 
   Future<void> _fetchAuthorName() async {
-    if (currentUser != null) {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .get();
+    final authorUID = widget.board['author'];
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(authorUID)
+        .get();
 
-      if (userDoc.exists) {
-        setState(() {
-          authorName = userDoc['name'];
-        });
-      }
+    if (userDoc.exists) {
+      setState(() {
+        authorName = userDoc['name'];
+        authorProfileImageUrl = userDoc['profileImageUrl'] ?? '';
+      });
     }
-  }
-
-  int _selectedIndex = 0;
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
   }
 
   @override
@@ -59,13 +69,88 @@ class _EditBoardPageState extends State<EditBoardPage> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    setState(() {
+      if (pickedFile != null) {
+        _image = File(pickedFile.path);
+      } else {
+        print('No image selected.');
+      }
+    });
+  }
+
+  Future<String?> _uploadImage(File image) async {
+    try {
+      final storageRef = FirebaseStorage.instance.ref();
+      final imageRef = storageRef.child(
+          'images/${DateTime.now().toIso8601String()}_${currentUser!.uid}.jpg');
+      final uploadTask = imageRef.putFile(image);
+      final snapshot = await uploadTask.whenComplete(() => null);
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      print('Error uploading image: $e');
+      return null;
+    }
+  }
+
+  void _pickLocation() async {
+    final selectedLocation = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => MapSample()),
+    );
+
+    if (selectedLocation != null) {
+      setState(() {
+        _selectedLocation = selectedLocation;
+        _getAddressFromLatLng(selectedLocation);
+      });
+    }
+  }
+
+  Future<void> _getAddressFromLatLng(LatLng position) async {
+    try {
+      List<Placemark> placemarks =
+          await placemarkFromCoordinates(position.latitude, position.longitude);
+      if (placemarks.isNotEmpty) {
+        setState(() {
+          _selectedAddress =
+              '${placemarks.first.street}, ${placemarks.first.locality}';
+          _contentController.text =
+              _contentController.text.replaceFirst(RegExp(r'장소:.*\n'), '');
+          _contentController.text =
+              '장소: $_selectedAddress\n${_contentController.text}';
+        });
+      }
+    } catch (e) {
+      print(e);
+    }
+  }
+
   void _saveBoard() async {
     if (_formKey.currentState!.validate()) {
+      String? imageUrl;
+      if (_image != null) {
+        imageUrl = await _uploadImage(_image!);
+      } else {
+        imageUrl = widget.board['imageUrl'];
+      }
+
       final board = {
         'content': _contentController.text,
         'author': widget.board['author'],
         'createdAt': widget.board['createdAt'],
+        'imageUrl': imageUrl,
+        'location': _selectedLocation != null
+            ? GeoPoint(
+                _selectedLocation!.latitude, _selectedLocation!.longitude)
+            : widget.board['location'],
         'author_name': authorName,
+        'authorProfileImageUrl': authorProfileImageUrl,
+        'id': widget.board['id'],
+        'address': _selectedAddress ?? widget.board['address'],
       };
       await FirebaseFirestore.instance
           .collection('projects')
@@ -99,7 +184,7 @@ class _EditBoardPageState extends State<EditBoardPage> {
           ),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
@@ -110,13 +195,17 @@ class _EditBoardPageState extends State<EditBoardPage> {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundImage:
-                        AssetImage('assets/avatar.png'), // 이미지 경로 설정
                     radius: 20,
+                    backgroundImage: authorProfileImageUrl.isNotEmpty
+                        ? NetworkImage(authorProfileImageUrl)
+                        : null,
+                    child: authorProfileImageUrl.isEmpty
+                        ? Icon(Icons.person, size: 20)
+                        : null,
                   ),
                   SizedBox(width: 10),
                   Text(
-                    '장가은학부생', // 사용자 이름
+                    authorName.isNotEmpty ? authorName : 'Unknown',
                     style: TextStyle(fontSize: 16),
                   ),
                 ],
@@ -137,32 +226,40 @@ class _EditBoardPageState extends State<EditBoardPage> {
                 },
               ),
               SizedBox(height: 20),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Icon(Icons.camera),
+              if (_image != null)
+                Center(
+                  child: Image.file(
+                    _image!,
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              else if (imageUrl != null && imageUrl!.isNotEmpty)
+                Center(
+                  child: Image.network(
+                    imageUrl!,
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              SizedBox(height: 20),
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.camera),
+                    onPressed: _pickImage,
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.map),
+                    onPressed: _pickLocation,
+                  ),
+                ],
               ),
             ],
           ),
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'Calendar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.amber[800],
-        onTap: _onItemTapped,
       ),
     );
   }

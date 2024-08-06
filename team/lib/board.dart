@@ -17,7 +17,7 @@ class _BoardPageState extends State<BoardPage> {
   late String projectId = widget.projectId;
   List<Map<String, dynamic>> _boards = [];
   final User? currentUser = FirebaseAuth.instance.currentUser;
-  int _selectedIndex = 2;
+  int _selectedIndex = 3;
 
   void _onItemTapped(int index) {
     switch (index) {
@@ -25,10 +25,14 @@ class _BoardPageState extends State<BoardPage> {
         Navigator.pop(context);
         break;
       case 1:
-        Navigator.pushReplacementNamed(context, '/calendar',
+        Navigator.pushReplacementNamed(context, '/detail',
             arguments: widget.projectId);
         break;
       case 2:
+        Navigator.pushReplacementNamed(context, '/calendar',
+            arguments: widget.projectId);
+        break;
+      case 3:
         Navigator.pushReplacementNamed(context, '/board',
             arguments: widget.projectId);
         break;
@@ -65,15 +69,26 @@ class _BoardPageState extends State<BoardPage> {
         final authorName = userDoc.exists ? userDoc['name'] : 'Unknown';
         final profileImageUrl =
             userDoc.exists ? userDoc['profileImageUrl'] : null;
+        final createdAt = doc['createdAt'];
+        String createdAtStr;
+        if (createdAt is Timestamp) {
+          createdAtStr = createdAt.toDate().toString();
+        } else if (createdAt is String) {
+          createdAtStr = createdAt;
+        } else {
+          createdAtStr = '';
+        }
 
         boards.add({
           'content': doc['content'],
           'id': doc.id,
           'author': doc['author'],
           'author_name': authorName,
-          'profileImageUrl': profileImageUrl,
+          'authorProfileImageUrl': profileImageUrl,
           'imageUrl': doc['imageUrl'],
-          'createdAt': (doc['createdAt'] as Timestamp).toDate().toString(),
+          'createdAt': createdAtStr,
+          'location': doc['location'],
+          'address': doc['address'],
         });
       }
 
@@ -155,7 +170,9 @@ class _BoardPageState extends State<BoardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text('게시판'),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: Icon(Icons.add),
@@ -178,9 +195,9 @@ class _BoardPageState extends State<BoardPage> {
                   Row(
                     children: [
                       ClipOval(
-                        child: _boards[index]['profileImageUrl'] != null
+                        child: _boards[index]['authorProfileImageUrl'] != null
                             ? Image.network(
-                                _boards[index]['profileImageUrl'],
+                                _boards[index]['authorProfileImageUrl'],
                                 width: 40,
                                 height: 40,
                                 fit: BoxFit.cover,
@@ -207,6 +224,7 @@ class _BoardPageState extends State<BoardPage> {
                       Spacer(),
                       if (_boards[index]['author'] == currentUser!.uid)
                         PopupMenuButton<String>(
+                          color: Colors.white,
                           onSelected: (String result) {
                             if (result == 'edit') {
                               _navigateToEditBoardPage(context, index);
@@ -267,22 +285,29 @@ class _BoardPageState extends State<BoardPage> {
         },
       ),
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
             label: 'Home',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: 'Detail',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.calendar_today),
             label: 'Calendar',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bubble_chart),
+            icon: Icon(Icons.forum),
             label: 'Board',
           ),
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.black,
+        unselectedItemColor: Colors.grey,
+        showUnselectedLabels: true,
         onTap: _onItemTapped,
       ),
     );

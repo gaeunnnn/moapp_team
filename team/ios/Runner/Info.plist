@@ -45,5 +45,15 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
+	<key>GMSApiKey</key>
+	<string>AIzaSyBeEfRS7OSwn3ctd3jcUQmzAwTMqbGEG1w</string>
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
+	<key>GMSApiKey</key>
+	<string>AIzaSyC2DlkGaZxCZdufwCie8I1xH2_hi_mrO9g</string>
+	<key>GIDClientID</key>
+	<string>1:77009832062:ios:05565a148c2e985896b02f</string>
 </dict>
 </plist>

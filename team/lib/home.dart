@@ -3,6 +3,9 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'project.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'editProject.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -17,12 +20,33 @@ class _HomePageState extends State<HomePage> {
   bool isCarouselView = true;
   List<Project> projects = [];
   String userName = '';
+  final String _cityName = 'seoul';
+  final String _apiKey = '503f3aa50e359bf3b9ec8bb0ed329b50';
+  late String _apiUrl;
+
+  var _weatherData;
+
+  String? _weatherIcon;
+  double? _temperature;
 
   @override
   void initState() {
     super.initState();
     fetchUserName();
     fetchProjects();
+    _apiUrl =
+        'http://api.openweathermap.org/data/2.5/weather?q=$_cityName&appid=$_apiKey&units=metric';
+    fetchWeatherData();
+  }
+
+  Future<void> fetchWeatherData() async {
+    final response = await http.get(Uri.parse(_apiUrl));
+    final decodedResponse = json.decode(response.body);
+    setState(() {
+      _weatherData = decodedResponse;
+      _weatherIcon = _weatherData['weather'][0]['icon'];
+      _temperature = _weatherData['main']['temp'];
+    });
   }
 
   Future<void> fetchUserName() async {
@@ -265,7 +289,7 @@ class _HomePageState extends State<HomePage> {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.of(context).pushNamed(
-                        '/calendar',
+                        '/detail',
                         arguments: project.id,
                       );
                     },
@@ -316,32 +340,59 @@ class _HomePageState extends State<HomePage> {
         title: const Text('TeamSync',
             style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
-          IconButton(
-            icon: Icon(isCarouselView ? Icons.view_list : Icons.view_carousel),
-            onPressed: () {
-              setState(() {
-                isCarouselView = !isCarouselView;
-              });
-            },
-          ),
+          if (_weatherIcon != null && _temperature != null)
+            Row(
+              children: [
+                Image.network(
+                  'http://openweathermap.org/img/wn/$_weatherIcon@2x.png',
+                  width: 70,
+                  height: 70,
+                ),
+                Text(
+                  '$_temperature°C',
+                  style: TextStyle(fontSize: 12),
+                ),
+                SizedBox(
+                  width: 20,
+                )
+              ],
+            ),
         ],
       ),
       body: Column(
         children: [
-          SizedBox(height: 50),
+          SizedBox(height: 30),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("$userName학부생님의"),
+                SizedBox(
+                  height: 10,
+                ),
+                Text("$userName님의"),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      "프로젝트 >",
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                    Row(
+                      children: [
+                        Text(
+                          "프로젝트",
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 20),
+                        ),
+                        IconButton(
+                          iconSize: 20,
+                          icon: Icon(isCarouselView
+                              ? Icons.view_list
+                              : Icons.view_carousel),
+                          onPressed: () {
+                            setState(() {
+                              isCarouselView = !isCarouselView;
+                            });
+                          },
+                        ),
+                      ],
                     ),
                     Row(
                       children: [
@@ -357,6 +408,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                         PopupMenuButton<int>(
                           icon: Icon(Icons.add),
+                          color: Colors.white,
                           onSelected: (value) {
                             if (value == 0) {
                               Navigator.of(context).pushNamed('/addProject');
@@ -367,6 +419,7 @@ class _HomePageState extends State<HomePage> {
                                   TextEditingController codeController =
                                       TextEditingController();
                                   return AlertDialog(
+                                    backgroundColor: Colors.white,
                                     title: Text('코드를 입력하세요'),
                                     content: TextField(
                                       controller: codeController,
@@ -375,13 +428,17 @@ class _HomePageState extends State<HomePage> {
                                     ),
                                     actions: [
                                       TextButton(
-                                        child: Text('취소'),
+                                        child: Text('취소',
+                                            style:
+                                                TextStyle(color: Colors.black)),
                                         onPressed: () {
                                           Navigator.of(context).pop();
                                         },
                                       ),
                                       TextButton(
-                                        child: Text('확인'),
+                                        child: Text('확인',
+                                            style:
+                                                TextStyle(color: Colors.black)),
                                         onPressed: () async {
                                           String code =
                                               codeController.text.trim();
@@ -511,12 +568,19 @@ class _HomePageState extends State<HomePage> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text('코드 확인'),
+            backgroundColor: Colors.white,
+            title: Text(
+              '코드 확인',
+              style: TextStyle(color: Colors.black),
+            ),
             content: Text('프로젝트 코드: ${project.id}'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: Text('확인'),
+                child: Text(
+                  '확인',
+                  style: TextStyle(color: Colors.black),
+                ),
               ),
             ],
           ),
@@ -529,8 +593,11 @@ class _HomePageState extends State<HomePage> {
               project: project,
               onSave: (editedProject) {
                 setState(() {
-                  int index = projects.indexOf(project);
-                  projects[index] = editedProject;
+                  int index =
+                      projects.indexWhere((p) => p.id == editedProject.id);
+                  if (index != -1) {
+                    projects[index] = editedProject;
+                  }
                 });
               },
             ),
@@ -538,84 +605,18 @@ class _HomePageState extends State<HomePage> {
         );
         break;
       case 2:
-        // 삭제 로직 추가
+        deleteProjectFromFirestore(project.id);
         setState(() {
-          projects.remove(project);
+          projects.removeWhere((p) => p.id == project.id);
         });
         break;
     }
   }
-}
 
-class EditProjectPage extends StatefulWidget {
-  final Project project;
-  final ValueChanged<Project> onSave;
-
-  const EditProjectPage({
-    Key? key,
-    required this.project,
-    required this.onSave,
-  }) : super(key: key);
-
-  @override
-  _EditProjectPageState createState() => _EditProjectPageState();
-}
-
-class _EditProjectPageState extends State<EditProjectPage> {
-  late TextEditingController titleController;
-  late TextEditingController durationController;
-
-  @override
-  void initState() {
-    super.initState();
-    titleController = TextEditingController(text: widget.project.title);
-    durationController = TextEditingController(text: widget.project.duration);
-  }
-
-  @override
-  void dispose() {
-    titleController.dispose();
-    durationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Edit Project')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: InputDecoration(labelText: 'Title'),
-            ),
-            TextField(
-              controller: durationController,
-              decoration: InputDecoration(labelText: 'Duration'),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Project editedProject = Project(
-                  id: widget.project.id,
-                  leaderUid: widget.project.leaderUid,
-                  title: titleController.text,
-                  duration: durationController.text,
-                  members: widget.project.members,
-                  description: widget.project.description,
-                  progress: widget.project.progress,
-                  isCompleted: widget.project.isCompleted,
-                );
-                widget.onSave(editedProject);
-                Navigator.of(context).pop();
-              },
-              child: Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> deleteProjectFromFirestore(String projectId) async {
+    await FirebaseFirestore.instance
+        .collection('projects')
+        .doc(projectId)
+        .delete();
   }
 }

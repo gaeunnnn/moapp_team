@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class LoginPage extends StatefulWidget {
@@ -12,6 +13,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -44,7 +46,21 @@ class _LoginPageState extends State<LoginPage> {
       try {
         final UserCredential userCredential =
             await _auth.signInWithCredential(credential);
-        if (userCredential.user != null) {
+        final User? user = userCredential.user;
+        if (user != null) {
+          // Firestore에 사용자 정보가 있는지 확인하고 없으면 등록
+          final userDoc =
+              await _firestore.collection('users').doc(user.uid).get();
+          if (!userDoc.exists) {
+            await _firestore.collection('users').doc(user.uid).set({
+              'name': user.displayName ?? '',
+              'email': user.email ?? '',
+              'profileImageUrl': user.photoURL ?? '',
+              'department': '',
+              'year': '',
+              'faculty': '',
+            });
+          }
           Navigator.of(context).pushReplacementNamed('/');
         }
       } catch (e) {
